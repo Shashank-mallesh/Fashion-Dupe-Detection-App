@@ -1,8 +1,7 @@
 """
 Fashion Dupe Detection - Streamlit Application
 """
- pip install -r
-import streamlit as st
+ import streamlit as st
 import torch
 from PIL import Image
 import matplotlib.pyplot as plt
