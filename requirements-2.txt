@@ -1,3 +1,4 @@
+pip install -r 
 torch==2.0.1
 torchvision==0.15.2
 streamlit==1.28.0
