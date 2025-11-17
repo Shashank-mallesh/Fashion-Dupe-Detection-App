@@ -1,76 +1,18 @@
 """
 Fashion Dupe Detection - Streamlit Application
+Simplified version that works without external dependencies
 """
 import streamlit as st
-import os
-import sys
-
-# Check and install missing packages
-try:
-    import torch
-except ImportError:
-    st.error("PyTorch not installed. Please wait...")
-    os.system("pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu")
-    import torch
-
-try:
-    from PIL import Image
-except ImportError:
-    st.error("PIL not installed. Please wait...")
-    os.system("pip install Pillow")
-    from PIL import Image
-
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    st.error("Matplotlib not installed. Please wait...")
-    os.system("pip install matplotlib")
-    import matplotlib.pyplot as plt
-
-try:
-    import numpy as np
-except ImportError:
-    st.error("Numpy not installed. Please wait...")
-    os.system("pip install numpy")
-    import numpy as np
-
-# Now try to import your custom modules
-try:
-    from model import load_model
-    from utils import predict_class, compute_similarity, is_dupe
-except ImportError as e:
-    st.error(f"Could not import custom modules: {e}")
-    st.info("Please make sure model.py and utils.py are in the same directory")
-    
-    # Provide fallback implementations
-    st.warning("Using fallback implementations...")
-    
-    # Fallback model loading function
-    def load_model(model_path, num_classes=3, device='cpu'):
-        st.warning(f"Fallback: Would load model from {model_path}")
-        return None
-    
-    # Fallback prediction function
-    def predict_class(model, image, class_names, device):
-        if model is None:
-            return "women", 85.0, [0.1, 0.2, 0.7]
-        # Simple mock implementation
-        return "women", 85.0, [0.1, 0.2, 0.7]
-    
-    # Fallback similarity function
-    def compute_similarity(model, image1, image2, device):
-        return 75.0
-    
-    # Fallback dupe detection
-    def is_dupe(similarity, threshold):
-        return similarity >= threshold
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+import io
 
 # Page configuration
 st.set_page_config(
     page_title="Fashion Dupe Detection",
     page_icon="👗",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 # Custom CSS
@@ -96,19 +38,68 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def load_model_cached():
-    """Load model with caching"""
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    st.write(f"Using device: {device}")
+def mock_predict_class(image, class_names):
+    """Mock prediction function that works without a real model"""
+    # Simple mock based on image properties
+    if image:
+        # Convert image to numpy array
+        img_array = np.array(image)
+        
+        # Mock logic based on image characteristics
+        if len(img_array.shape) == 3:
+            # Analyze color distribution
+            avg_color = np.mean(img_array, axis=(0, 1))
+            
+            # Simple mock classification
+            if avg_color[2] > avg_color[0] and avg_color[2] > avg_color[1]:  # More red
+                predicted_idx = 2  # women
+            elif avg_color[1] > avg_color[0] and avg_color[1] > avg_color[2]:  # More green
+                predicted_idx = 1  # men
+            else:
+                predicted_idx = 0  # footwear
+        else:
+            predicted_idx = 0  # footwear
+        
+        # Generate mock probabilities
+        probs = np.random.dirichlet(np.ones(3) * 10)
+        probs[predicted_idx] += 0.3  # Boost the predicted class
+        probs = probs / probs.sum()
+        
+        confidence = probs[predicted_idx] * 100
+        return class_names[predicted_idx], confidence, probs
     
-    try:
-        model = load_model('best_fashion_dupe_model.pth', num_classes=3, device=device)
-        return model, device
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        st.info("Running in demo mode with mock data")
-        return None, device
+    return "unknown", 0.0, np.array([0.33, 0.33, 0.34])
+
+def mock_compute_similarity(image1, image2):
+    """Mock similarity computation"""
+    if image1 and image2:
+        # Convert images to numpy arrays
+        img1_array = np.array(image1)
+        img2_array = np.array(image2)
+        
+        # Simple mock similarity based on image properties
+        if img1_array.shape == img2_array.shape:
+            # Calculate color histogram similarity
+            hist1 = np.histogram(img1_array.flatten(), bins=50)[0]
+            hist2 = np.histogram(img2_array.flatten(), bins=50)[0]
+            
+            # Normalize histograms
+            hist1 = hist1 / hist1.sum()
+            hist2 = hist2 / hist2.sum()
+            
+            # Calculate similarity (1 - histogram distance)
+            similarity = 1.0 - 0.5 * np.sum(np.abs(hist1 - hist2))
+            similarity = max(0.3, min(0.95, similarity))  # Keep in reasonable range
+        else:
+            similarity = 0.5 + np.random.random() * 0.3  # Random similarity
+        
+        return similarity * 100
+    
+    return 50.0
+
+def is_dupe(similarity, threshold):
+    """Determine if images are dupes based on similarity threshold"""
+    return similarity >= threshold
 
 def main():
     # Header
@@ -139,14 +130,11 @@ def main():
         st.markdown("---")
         st.markdown("### About")
         st.info(
-            "This app uses a ResNet50-based CNN to classify fashion items "
-            "into categories (men/women/footwear) and detect duplicate products."
+            "This app demonstrates fashion item classification and duplicate detection. "
+            "Currently running in demo mode with mock predictions."
         )
     
-    # Load model
-    model, device = load_model_cached()
-    
-    # Class names (update these based on your dataset)
+    # Class names
     class_names = ['footwear', 'men', 'women']
     
     # Main content
@@ -176,8 +164,8 @@ def main():
                 
                 with st.spinner("Analyzing image..."):
                     # Make prediction
-                    predicted_class, confidence, all_probs = predict_class(
-                        model, image, class_names, device
+                    predicted_class, confidence, all_probs = mock_predict_class(
+                        image, class_names
                     )
                 
                 # Display results
@@ -204,6 +192,8 @@ def main():
                            f'{prob*100:.1f}%', ha='left', va='center')
                 
                 st.pyplot(fig)
+            else:
+                st.info("Please upload an image to see classification results")
     
     else:  # Dupe Detection Mode
         st.header("🔍 Dupe Detection - Compare Two Images")
@@ -243,11 +233,11 @@ def main():
             if st.button("🔍 Compare Images", use_container_width=True):
                 with st.spinner("Comparing images..."):
                     # Get classifications
-                    pred1, conf1, _ = predict_class(model, image1, class_names, device)
-                    pred2, conf2, _ = predict_class(model, image2, class_names, device)
+                    pred1, conf1, _ = mock_predict_class(image1, class_names)
+                    pred2, conf2, _ = mock_predict_class(image2, class_names)
                     
                     # Compute similarity
-                    similarity = compute_similarity(model, image1, image2, device)
+                    similarity = mock_compute_similarity(image1, image2)
                     is_duplicate = is_dupe(similarity, threshold)
                 
                 # Display results
@@ -301,12 +291,14 @@ def main():
                 ax.set_title('Similarity Score Visualization')
                 
                 st.pyplot(fig)
+        else:
+            st.info("Please upload both images to compare them")
     
     # Footer
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: gray;'>"
-        "Fashion Dupe Detection System | Powered by PyTorch & Streamlit"
+        "Fashion Dupe Detection System | Demo Mode | Powered by Streamlit"
         "</div>",
         unsafe_allow_html=True
     )
